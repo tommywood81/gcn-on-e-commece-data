@@ -1,0 +1,354 @@
+# ===========================
+# 📦 1. Import Dependencies
+# ===========================
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Set consistent style and colors
+sns.set_style("whitegrid")
+custom_palette = ["#ADD8E6", "#FFA500", "#FFFFFF"]
+sns.set_palette(custom_palette)
+
+# ================================
+# 📥 2. Load and Preview the Data
+# ================================
+print("Loading dataset...")
+url = "https://raw.githubusercontent.com/tommywood81/GCN_Data/refs/heads/data/Fraudulent_E-Commerce_Transaction_Data_2.csv"
+df = pd.read_csv(url)
+
+print("\n✅ Dataset Loaded!")
+print("Shape of the dataset:", df.shape)
+print("\nFirst few rows:\n")
+print(df.head())
+
+print("\n📋 Data Types:\n")
+print(df.dtypes)
+
+print("\n🔍 Missing Values:\n")
+print(df.isnull().sum())
+
+# ================================
+# 📆 3. Date Formatting
+# ================================
+print("\nConverting 'Transaction Date' to datetime format...")
+df['Transaction Date'] = pd.to_datetime(df['Transaction Date'], errors='coerce')
+
+print("Creating 'Account Creation Date' by subtracting account age from transaction date...")
+df['Account Creation Date'] = df['Transaction Date'] - pd.to_timedelta(df['Account Age Days'], unit='D')
+
+# ======================================
+# 🚩 4. Outlier Detection (Customer Age)
+# ======================================
+print("\nDetecting outliers in 'Customer Age' using IQR...")
+
+def find_age_outliers(series):
+    Q1 = series.quantile(0.25)
+    Q3 = series.quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    return series[(series < lower_bound) | (series > upper_bound)]
+
+age_outliers = find_age_outliers(df['Customer Age'])
+print(f"🔺 Outliers in Customer Age: {len(age_outliers)} found")
+print("Example outlier ages:", age_outliers.unique())
+
+# Custom logic for age group breakdown
+under_18 = df[df['Customer Age'] < 18].shape[0]
+under_0 = df[df['Customer Age'] < 0].shape[0]
+over_18 = df[df['Customer Age'] >= 18].shape[0]
+
+print(f"\n📊 Customer Age Breakdown:")
+print(f"- Under 18: {under_18}")
+print(f"- Less than 0 (invalid): {under_0}")
+print(f"- 18 and over: {over_18}")
+
+# 🔍 Count how many under 18 are fraudulent
+under_18_fraud_count = df[(df['Customer Age'] < 18) & (df['Is Fraudulent'] == 1)].shape[0]
+print(f"- Of those under 18, {under_18_fraud_count} were marked as fraudulent.")
+
+# ====================================
+# 📊 5. Data Distribution Visualizations
+# ====================================
+
+# Fraudulent vs Legitimate Transactions
+plt.figure(figsize=(6, 4))
+sns.countplot(data=df, x='Is Fraudulent')
+plt.title("🕵️ Fraudulent vs Legitimate Transactions")
+plt.xlabel("Is Fraudulent")
+plt.ylabel("Transaction Count")
+plt.tight_layout()
+plt.show()
+
+# Transaction Amount Histogram
+plt.figure(figsize=(8, 5))
+sns.histplot(df['Transaction Amount'], bins=50, kde=True, color=custom_palette[0])
+plt.title("💰 Transaction Amount Distribution")
+plt.xlabel("Amount")
+plt.ylabel("Frequency")
+plt.tight_layout()
+plt.show()
+print("Note: High-value transactions are rare, but not necessarily outliers. We'll keep them.")
+
+# Customer Age Distribution
+plt.figure(figsize=(8, 5))
+sns.histplot(df['Customer Age'], bins=30, kde=True, color=custom_palette[1])
+plt.title("👤 Customer Age Distribution")
+plt.xlabel("Age")
+plt.tight_layout()
+plt.show()
+
+# Fraud by Hour of Day
+plt.figure(figsize=(10, 5))
+sns.countplot(data=df, x='Transaction Hour', hue='Is Fraudulent')
+plt.title("⏰ Fraud by Hour of Transaction")
+plt.xlabel("Hour of Day")
+plt.ylabel("Transaction Count")
+plt.tight_layout()
+plt.show()
+
+# Payment Method vs Fraud
+plt.figure(figsize=(8, 5))
+sns.countplot(data=df, x='Payment Method', hue='Is Fraudulent')
+plt.title("💳 Fraud Distribution by Payment Method")
+plt.xticks(rotation=15)
+plt.tight_layout()
+plt.show()
+
+# Device Type vs Fraud
+plt.figure(figsize=(8, 5))
+sns.countplot(data=df, x='Device Used', hue='Is Fraudulent')
+plt.title("📱 Fraud by Device Type")
+plt.tight_layout()
+plt.show()
+
+# Top 10 Customer Locations
+top_locations = df['Customer Location'].value_counts().head(10)
+plt.figure(figsize=(10, 5))
+sns.barplot(x=top_locations.index, y=top_locations.values)
+plt.title("🌍 Top 10 Customer Locations by Volume")
+plt.ylabel("Transaction Count")
+plt.xlabel("Location")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# =====================================
+# 🔗 6. Correlation Analysis (Numeric)
+# =====================================
+corr_cols = ['Transaction Amount', 'Quantity', 'Customer Age', 'Account Age Days', 'Transaction Hour', 'Is Fraudulent']
+corr = df[corr_cols].corr()
+
+plt.figure(figsize=(10, 6))
+sns.heatmap(corr, annot=True, fmt=".2f", cmap=sns.color_palette(["#ADD8E6", "#FFFFFF", "#FFA500"], as_cmap=True))
+plt.title("📈 Correlation Matrix (Key Numerical Features)")
+plt.tight_layout()
+plt.show()
+
+# =====================================
+# 🧾 7. Summary Observations
+# =====================================
+print("\n📝 Key Observations:")
+
+most_common_location = df['Customer Location'].mode()[0]
+most_fraud_hour = df[df['Is Fraudulent'] == 1]['Transaction Hour'].mode()[0]
+most_fraud_device = df[df['Is Fraudulent'] == 1]['Device Used'].mode()[0]
+
+print(f"- Dataset includes {len(df)} transactions.")
+print(f"- Most common customer location: {most_common_location}")
+print(f"- Most frequent fraud occurs around hour: {most_fraud_hour}")
+print(f"- The device type most commonly associated with fraud is: {most_fraud_device}")
+print(f"- There are {len(age_outliers)} likely outliers in customer age (e.g., -2 years old).")
+print(f"- There are {under_0} customers with impossible negative ages — possible data errors.")
+
+# =====================================
+# ⚖️ 8. Undersampling for Class Balance
+# =====================================
+print("\n⚖️ Performing undersampling to create 1:3 fraud-to-legit ratio...")
+
+# Separate fraud and legit
+fraud_df = df[df['Is Fraudulent'] == 1]
+legit_df = df[df['Is Fraudulent'] == 0]
+
+# Undersample legit transactions to 3x fraud count
+target_legit_count = 3 * len(fraud_df)
+legit_sample = legit_df.sample(n=target_legit_count, random_state=42)
+
+# Combine into new balanced dataframe
+balanced_df = pd.concat([fraud_df, legit_sample]).sample(frac=1, random_state=42).reset_index(drop=True)
+print(f"✅ Balanced dataset: {balanced_df.shape[0]} rows ({len(fraud_df)} fraud, {len(legit_sample)} legit)")
+
+# ================================================
+# 📈 9. Correlation Heatmap After Undersampling
+# ================================================
+print("\n🔍 Generating correlation heatmap on balanced dataset...")
+
+corr_cols = ['Transaction Amount', 'Quantity', 'Customer Age', 'Account Age Days', 'Transaction Hour', 'Is Fraudulent']
+balanced_corr = balanced_df[corr_cols].corr()
+
+plt.figure(figsize=(10, 6))
+sns.heatmap(balanced_corr, annot=True, fmt=".2f", cmap=sns.color_palette(["#ADD8E6", "#FFFFFF", "#FFA500"], as_cmap=True))
+plt.title("📈 Correlation Matrix After Undersampling (Fraud vs Features)")
+plt.tight_layout()
+plt.show()
+
+# ================================================
+# 📄 10. Print Heatmap Correlation Matrix as Text
+# ================================================
+print("\n🧾 Correlation Matrix (Text Format):")
+print(balanced_corr.round(3).to_string())
+
+"""Key Correlation Insights (with Is Fraudulent)
+Feature
+Correlation
+Interpretation
+Transaction Amount
++0.320
+✅ Moderate positive correlation. Fraudulent transactions tend to involve higher amounts. This is a useful signal for detection.
+Quantity
+–0.010
+❌ Very weak correlation. Number of items purchased does not significantly differ between fraud and legit. Likely not useful.
+Customer Age
++0.006
+❌ Negligible correlation. Age has almost no direct link to fraud likelihood. Might need to explore non-linear or interaction effects.
+Account Age Days
+–0.272
+✅ Moderate negative correlation. Fraud is more likely when accounts are newer (i.e., low account age). Very useful feature.
+Transaction Hour
+–0.238
+✅ Weak to moderate negative correlation. Fraud tends to happen at certain times of day, possibly off-hours. This is insightful.
+
+Summary of What This Means
+	•	Most Predictive Features (based on linear correlation):
+	•	Transaction Amount → higher value = more likely to be fraud
+	•	Account Age Days → newer account = more fraud
+	•	Transaction Hour → fraud tends to occur during specific times (e.g., night or early morning)
+	•	Least Useful Features:
+	•	Quantity and Customer Age show almost no correlation. You may consider dropping them unless they interact with other variables in non-linear models
+  (like trees or GNNs).
+
+""" prototype of data_cleaning
+
+# ===============================
+# 📂 data_cleaning.py
+# ===============================
+
+import pandas as pd
+from abc import ABC, abstractmethod
+
+# ===============================
+# 🧼 Strategy Base Class
+# ===============================
+class DataCleaningStrategy(ABC):
+    """
+    Abstract base class for data cleaning strategies.
+
+    All cleaning strategies must implement the `clean()` method.
+    """
+    @abstractmethod
+    def clean(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Cleans the provided DataFrame according to a specific strategy.
+
+        Parameters:
+            df (pd.DataFrame): The raw transaction dataset.
+
+        Returns:
+            pd.DataFrame: The cleaned DataFrame.
+        """
+        pass
+
+# ======================================
+# 🧽 Default Cleaning Strategy
+# ======================================
+class DefaultFraudCleaningStrategy(DataCleaningStrategy):
+    """
+    Default cleaning strategy for fraud detection data.
+
+    This strategy:
+    - Removes customers with age < 18 (underage or fake profiles).
+    - Removes rows with negative account age (data entry errors).
+    - Removes rows with non-positive transaction amounts.
+    - Removes rows with missing values in critical columns.
+    """
+
+    def clean(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Cleans the fraud dataset using default fraud-focused rules.
+
+        Cleaning Rules:
+        - Drops rows where 'Customer Age' is less than 18.
+        - Drops rows where 'Account Age Days' is negative.
+        - Drops rows where 'Transaction Amount' is zero or negative.
+        - Drops rows with missing values in key columns:
+            ['Transaction Amount', 'Customer Age', 'Account Age Days', 'Transaction Hour', 'Is Fraudulent']
+
+        Parameters:
+            df (pd.DataFrame): The raw transaction data.
+
+        Returns:
+            pd.DataFrame: A cleaned version of the DataFrame with invalid entries removed.
+        """
+        original_shape = df.shape
+        print(f"\n📊 Starting cleaning: {original_shape[0]} rows, {original_shape[1]} columns")
+
+        # Drop customers under 18
+        df = df[df['Customer Age'] >= 18]
+        print(f"✅ Dropped customers under 18. Remaining: {df.shape[0]} rows")
+
+        # Drop negative account age values
+        df = df[df['Account Age Days'] >= 0]
+        print(f"✅ Dropped rows with negative account age. Remaining: {df.shape[0]} rows")
+
+        # Drop zero or negative transaction amounts
+        df = df[df['Transaction Amount'] > 0]
+        print(f"✅ Dropped zero or negative transaction amounts. Remaining: {df.shape[0]} rows")
+
+        # Drop rows with missing values in key columns
+        required_cols = [
+            'Transaction Amount', 'Customer Age',
+            'Account Age Days', 'Transaction Hour', 'Is Fraudulent'
+        ]
+        before_dropna = df.shape[0]
+        df = df.dropna(subset=required_cols)
+        print(f"✅ Dropped rows with missing values in required fields ({before_dropna - df.shape[0]} rows removed)")
+
+        print(f"\n🧼 Cleaning complete. Final shape: {df.shape[0]} rows, {df.shape[1]} columns")
+        return df
+
+# ===============================
+# 🧰 Cleaning Context Class
+# ===============================
+class DataCleaner:
+    """
+    Context class for applying a data cleaning strategy.
+
+    Allows the cleaning behavior to be swapped by injecting a different strategy.
+    """
+
+    def __init__(self, strategy: DataCleaningStrategy):
+        """
+        Initializes the DataCleaner with a specific strategy.
+
+        Parameters:
+            strategy (DataCleaningStrategy): The strategy to use for cleaning.
+        """
+        self.strategy = strategy
+
+    def clean(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Applies the configured cleaning strategy to the input DataFrame.
+
+        Parameters:
+            df (pd.DataFrame): The raw input data.
+
+        Returns:
+            pd.DataFrame: Cleaned data as per the active strategy.
+        """
+        return self.strategy.clean(df)
+
+        """
+
+
